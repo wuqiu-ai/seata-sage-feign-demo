@@ -1,0 +1,23 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: seata-saga-rm-one
+  datasource:
+    saga:
+      driver-class: com.alibaba.druid.proxy.DruidDriver
+      url: jdbc:mysql://192.168.202.1:3306/seata_order
+      username: otter
+      password: 123456
+  cloud:
+    alibaba:
+      seata:
+        tx-service-group: my_test_tx_group
+eureka:
+  client:
+    service-url:
+      defaultZone: http://192.168.202.1:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.cloud.client.ip-address}:${server.port}

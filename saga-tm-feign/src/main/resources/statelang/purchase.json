@@ -1,0 +1,118 @@
+{
+  "Name": "purchaseProcess",
+  "Comment": "用户下单流程-saga流程",
+  "StartState": "CreateOrderNo",
+  "Version": "1.0.0",
+  "States": {
+    "CreateOrderNo": {
+      "Comment": "生成订单号服务",
+      "Type": "ServiceTask",
+      "ServiceName": "com.fly.seata.api.OrderApi",
+      "ServiceMethod": "createOrderNo",
+      "CompensateState": "CompensationCanalOrder1",
+      "Catch": [
+        {
+          "Exceptions": [
+            "java.lang.Throwable"
+          ],
+          "Next": "CompensationTrigger"
+        }],
+      "Output": {
+        "orderNo":"$.#root"
+      },
+      "Next": "CreateOrder",
+      "Status": {
+        "$Exception{java.lang.Throwable}": "UN",
+        "#root != null": "SU",
+        "#root == null": "FA"
+      }
+    },
+    "CreateOrder": {
+      "Comment": "创建订单服务",
+      "Type": "ServiceTask",
+      "ServiceName": "com.fly.seata.api.OrderApi",
+      "ServiceMethod": "createOrder",
+      "CompensateState": "CompensationCanalOrder2",
+      "Next": "ReduceStorage",
+      "Input": [{
+          "orderNo": "$.[orderNo]",
+          "userId": "$.[order].userId",
+          "productId": "$.[order].productId",
+          "count": "$.[order].count",
+          "price": "$.[order].money"
+        }],
+      "Catch": [{
+          "Exceptions": [
+            "java.lang.Throwable"
+          ],
+          "Next": "CompensationTrigger"
+        }],
+      "Status": {
+        "$Exception{java.lang.Throwable}": "UN",
+        "#root != null": "SU",
+        "#root == null": "FA"
+      }
+    },
+    "ReduceStorage": {
+      "Comment": "扣减库存服务",
+      "Type": "ServiceTask",
+      "ServiceName": "com.fly.seata.api.StorageApi",
+      "ServiceMethod": "reduce",
+      "CompensateState": "CompensatingReduceStorage",
+      "Next":"Succeed",
+      "Input": [{
+        "orderNo": "$.[orderNo]",
+        "productId": "$.[order].productId",
+        "count": "$.[order].count"
+      }],
+      "Catch": [{
+        "Exceptions": [
+          "java.lang.Throwable"
+        ],
+        "Next": "CompensationTrigger"
+      }]
+    },
+    "CompensationCanalOrder1": {
+      "Comment": "取消订单补偿服务1--用于订单号生成失败",
+      "Type": "ServiceTask",
+      "ServiceName": "com.fly.seata.api.OrderApi",
+      "ServiceMethod": "canalOrder",
+      "Input": [
+        "$.[orderNo]",
+        1
+      ]
+    },
+    "CompensationCanalOrder2": {
+      "Comment": "取消订单补偿服务2--用于订单生成失败",
+      "Type": "ServiceTask",
+      "ServiceName": "com.fly.seata.api.OrderApi",
+      "ServiceMethod": "canalOrder",
+      "Input": [
+        "$.[orderNo]",
+        2
+      ]
+    },
+    "CompensatingReduceStorage": {
+      "Comment": "扣减库存服务",
+      "Type": "ServiceTask",
+      "ServiceName": "com.fly.seata.api.StorageApi",
+      "ServiceMethod": "compensateReduce",
+      "Input": [{
+        "orderNo": "$.[orderNo]",
+        "productId": "$.[order].productId",
+        "count": "$.[order].count"
+      }]
+    },
+    "CompensationTrigger": {
+      "Type": "CompensationTrigger"
+    },
+    "Succeed": {
+      "Type":"Succeed"
+    },
+    "Fail": {
+      "Type":"Fail",
+      "ErrorCode": "STORAGE_FAILED",
+      "Message": "purchase failed"
+    }
+  }
+}
